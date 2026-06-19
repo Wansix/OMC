@@ -1,0 +1,94 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Grant execute permission for Gradle
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+
+      - name: Build all services
+        run: ./gradlew bootJar -x test --no-daemon
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push eureka-server
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/eureka-server
+          push: true
+          tags: ghcr.io/wansix/omc-eureka-server:latest
+
+      - name: Build & Push config-server
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/config-server
+          push: true
+          tags: ghcr.io/wansix/omc-config-server:latest
+
+      - name: Build & Push gateway
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/gateway
+          push: true
+          tags: ghcr.io/wansix/omc-gateway:latest
+
+      - name: Build & Push user-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/user-service
+          push: true
+          tags: ghcr.io/wansix/omc-user-service:latest
+
+      - name: Build & Push drop-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/drop-service
+          push: true
+          tags: ghcr.io/wansix/omc-drop-service:latest
+
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/omc
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose -f docker-compose.prod.yml --env-file .env.prod pull
+            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+            docker image prune -f

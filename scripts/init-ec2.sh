@@ -27,11 +27,13 @@ scp -i "$PEM_FILE" -o StrictHostKeyChecking=no \
   ./docker-compose.prod.yml \
   "$EC2_USER@$EC2_HOST:$REMOTE_DIR/docker-compose.prod.yml"
 
-# 3. .env.prod 전송
+# 3. .env.prod 전송 (.env로도 복사 → --env-file 없이 실행해도 동작)
 echo "[3/5] .env.prod 전송..."
 scp -i "$PEM_FILE" -o StrictHostKeyChecking=no \
   ./.env.prod \
   "$EC2_USER@$EC2_HOST:$REMOTE_DIR/.env.prod"
+ssh -i "$PEM_FILE" -o StrictHostKeyChecking=no "$EC2_USER@$EC2_HOST" \
+  "cp $REMOTE_DIR/.env.prod $REMOTE_DIR/.env"
 
 # 4. docker 설정 디렉토리 전송 (keycloak, postgres 초기화 스크립트)
 echo "[4/5] docker 설정 디렉토리 전송..."

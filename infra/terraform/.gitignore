@@ -1,0 +1,11 @@
+# 키 파일 - 절대 커밋 금지
+*.pem
+
+# Terraform 상태 파일 (AWS 리소스 정보 포함)
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# 변수 값 파일
+terraform.tfvars
